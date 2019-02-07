@@ -1,0 +1,3 @@
+version: "1"
+domain: azure.com
+repo: dev.azure.com/juan-lee/ctrlarm
