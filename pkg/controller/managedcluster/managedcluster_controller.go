@@ -18,18 +18,16 @@ package managedcluster
 
 import (
 	"context"
-	"reflect"
+	"time"
 
 	containerservicesv1alpha1 "dev.azure.com/juan-lee/ctrlarm/pkg/apis/containerservices/v1alpha1"
-	appsv1 "k8s.io/api/apps/v1"
+	"dev.azure.com/juan-lee/ctrlarm/pkg/services/azure/containerservices/managedcluster"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -39,10 +37,7 @@ import (
 
 var log = logf.Log.WithName("controller")
 
-/**
-* USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
-* business logic.  Delete these comments after modifying this file.*
- */
+const managedClusterFinalizer = "managedcluster.containerservices.azure.com"
 
 // Add creates a new ManagedCluster Controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
@@ -69,16 +64,6 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 		return err
 	}
 
-	// TODO(user): Modify this to be the types you create
-	// Uncomment watch a Deployment created by ManagedCluster - change this for objects you create
-	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &containerservicesv1alpha1.ManagedCluster{},
-	})
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -92,11 +77,6 @@ type ReconcileManagedCluster struct {
 
 // Reconcile reads that state of the cluster for a ManagedCluster object and makes changes based on the state read
 // and what is in the ManagedCluster.Spec
-// TODO(user): Modify this Reconcile function to implement your Controller logic.  The scaffolding writes
-// a Deployment as an example
-// Automatically generate RBAC rules to allow the Controller to read and write Deployments
-// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=containerservices.azure.com,resources=managedclusters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=containerservices.azure.com,resources=managedclusters/status,verbs=get;update;patch
 func (r *ReconcileManagedCluster) Reconcile(request reconcile.Request) (reconcile.Result, error) {
@@ -113,57 +93,120 @@ func (r *ReconcileManagedCluster) Reconcile(request reconcile.Request) (reconcil
 		return reconcile.Result{}, err
 	}
 
-	// TODO(user): Change this to be the object type created by your controller
-	// Define the desired Deployment object
-	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      instance.Name + "-deployment",
-			Namespace: instance.Namespace,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{"deployment": instance.Name + "-deployment"},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"deployment": instance.Name + "-deployment"}},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "nginx",
-							Image: "nginx",
-						},
-					},
-				},
-			},
-		},
-	}
-	if err := controllerutil.SetControllerReference(instance, deploy, r.scheme); err != nil {
+	secret := &corev1.Secret{}
+	err = r.Get(context.TODO(), types.NamespacedName{Name: instance.Spec.Identity.SecretName, Namespace: instance.Namespace}, secret)
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// TODO(user): Change this for the object type created by your controller
-	// Check if the Deployment already exists
-	found := &appsv1.Deployment{}
-	err = r.Get(context.TODO(), types.NamespacedName{Name: deploy.Name, Namespace: deploy.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		log.Info("Creating Deployment", "namespace", deploy.Namespace, "name", deploy.Name)
-		err = r.Create(context.TODO(), deploy)
+	log.Info("NewManagedClusterActuator", "subscriptionID", instance.Spec.SubscriptionID)
+	mca, err := managedcluster.NewManagedClusterActuator(context.TODO(), instance.Spec.SubscriptionID)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	found, err := mca.Get(context.TODO(), instance.Spec.ResourceGroup, instance.Name)
+	if _, ok := err.(*managedcluster.ClusterNotFound); ok {
+		if isDeletePending(instance) {
+			err = r.completeFinalize(context.TODO(), instance)
+			if err != nil {
+				return reconcile.Result{Requeue: true}, err
+			}
+			return reconcile.Result{}, nil
+		}
+
+		log.Info("Create ManagedCluster", "namespace", instance.Namespace, "name", instance.Name)
+		err = mca.Create(context.TODO(), instance, secret)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
+
+		return reconcile.Result{Requeue: true, RequeueAfter: time.Second * 30}, err
 	} else if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	// TODO(user): Change this for the object type created by your controller
-	// Update the found object and write the result back if there are any changes
-	if !reflect.DeepEqual(deploy.Spec, found.Spec) {
-		found.Spec = deploy.Spec
-		log.Info("Updating Deployment", "namespace", deploy.Namespace, "name", deploy.Name)
-		err = r.Update(context.TODO(), found)
+	instance.Status.ProvisioningState = string(*found.ProvisioningState)
+	log.Info("ManagedCluster ProvisioningState", "state", instance.Status.ProvisioningState)
+	if err = r.Status().Update(context.TODO(), instance); err != nil {
+		return reconcile.Result{}, err
+	}
+
+	if found.IsProvisioning() {
+		log.Info("Reconciling ManagedCluster", "namespace", instance.Namespace, "name", instance.Name, "state", instance.Status.ProvisioningState)
+		return reconcile.Result{Requeue: true, RequeueAfter: time.Second * 30}, err
+	}
+
+	if !isDeletePending(instance) {
+		if !hasFinalizer(instance.ObjectMeta.Finalizers) {
+			err = r.addFinalizer(context.TODO(), instance)
+			if err != nil {
+				return reconcile.Result{Requeue: true}, err
+			}
+			return reconcile.Result{Requeue: true}, nil
+		}
+	} else {
+		if hasFinalizer(instance.ObjectMeta.Finalizers) {
+			log.Info("Delete ManagedCluster", "namespace", instance.Namespace, "name", instance.Name)
+			err = mca.Delete(context.TODO(), instance.Spec.ResourceGroup, instance.Name)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			return reconcile.Result{Requeue: true, RequeueAfter: time.Second * 30}, err
+		}
+	}
+
+	desired := found.Merge(instance, nil)
+	if !found.IsEqual(desired) {
+		log.Info("Update ManagedCluster", "namespace", instance.Namespace, "name", instance.Name)
+		err = mca.Update(context.TODO(), instance.Spec.ResourceGroup, instance.Name, desired)
 		if err != nil {
 			return reconcile.Result{}, err
 		}
+
+		return reconcile.Result{Requeue: true, RequeueAfter: time.Second * 30}, err
 	}
+
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileManagedCluster) addFinalizer(ctx context.Context, instance *containerservicesv1alpha1.ManagedCluster) error {
+	log.Info("Adding ManagedCluster Finalizer", "namespace", instance.Namespace, "name", instance.Name)
+	instance.ObjectMeta.Finalizers = append(instance.ObjectMeta.Finalizers, managedClusterFinalizer)
+	if err := r.Update(ctx, instance); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *ReconcileManagedCluster) completeFinalize(ctx context.Context, instance *containerservicesv1alpha1.ManagedCluster) error {
+	instance.ObjectMeta.Finalizers = removeFinializer(instance.ObjectMeta.Finalizers)
+	if err := r.Update(ctx, instance); err != nil {
+		return err
+	}
+	log.Info("ManagedCluster Finialization Complete", "namespace", instance.Namespace, "name", instance.Name)
+	return nil
+}
+
+func hasFinalizer(slice []string) bool {
+	for _, item := range slice {
+		if item == managedClusterFinalizer {
+			return true
+		}
+	}
+	return false
+}
+
+func removeFinializer(slice []string) (result []string) {
+	for _, item := range slice {
+		if item == managedClusterFinalizer {
+			continue
+		}
+		result = append(result, item)
+	}
+	return
+}
+
+func isDeletePending(instance *containerservicesv1alpha1.ManagedCluster) bool {
+	return !instance.ObjectMeta.DeletionTimestamp.IsZero()
 }

@@ -5,5 +5,14 @@ metadata:
     controller-tools.k8s.io: "1.0"
   name: managedcluster-sample
 spec:
-  # Add fields here
-  foo: bar
+  subscriptionID: <insert sub id>
+  resourceGroup: <insert resource group>
+  # kubernetesVersion: "1.10.8"
+  location: westus2
+  # dnsPrefix: jpang-test-cluster
+  identity:
+    clientID: <insert client id>
+    secretName: <insert secret name>
+  linux:
+    authorizedKeys:
+      - "<insert id_rsa.pub>"

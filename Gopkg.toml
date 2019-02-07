@@ -19,6 +19,13 @@ required = [
 [prune]
   go-tests = true
 
+[[constraint]]
+  name = "github.com/Azure/azure-sdk-for-go"
+  version = "24.0.0"
+
+[[constraint]]
+  name = "github.com/Azure/go-autorest"
+  version = "11.2.7"
 
 # STANZAS BELOW ARE GENERATED AND MAY BE WRITTEN - DO NOT MODIFY BELOW THIS LINE.
 
