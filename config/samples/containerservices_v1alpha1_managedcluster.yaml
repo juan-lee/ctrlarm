@@ -1,0 +1,9 @@
+apiVersion: containerservices.azure.com/v1alpha1
+kind: ManagedCluster
+metadata:
+  labels:
+    controller-tools.k8s.io: "1.0"
+  name: managedcluster-sample
+spec:
+  # Add fields here
+  foo: bar
