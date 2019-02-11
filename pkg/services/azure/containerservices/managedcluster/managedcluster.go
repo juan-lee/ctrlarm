@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	defaultKubernetesVersion = "1.10.8"
+	defaultKubernetesVersion = "1.11.6"
 	defaultAdminUser         = "azureuser"
 )
 
@@ -178,26 +178,35 @@ func (mc *ManagedCluster) mergeAddons(desired *resourcesv1alpha1.ManagedCluster)
 }
 
 func (mc *ManagedCluster) mergeNodePools(desired *resourcesv1alpha1.ManagedCluster) {
-	for _, v := range desired.Spec.NodePools {
+	for n, v := range desired.Spec.NodePools {
 		if mc.AgentPoolProfiles == nil {
-			mc.AgentPoolProfiles = &[]containerservice.ManagedClusterAgentPoolProfile{}
+			pools := make([]containerservice.ManagedClusterAgentPoolProfile, len(desired.Spec.NodePools))
+			mc.AgentPoolProfiles = &pools
 		}
 
 		pool := containerservice.ManagedClusterAgentPoolProfile{}
 		if len(v.Name) > 0 {
 			pool.Name = to.StringPtr(string(v.Name))
+		} else {
+			pool.Name = to.StringPtr("default")
 		}
 
 		if v.Size > 0 {
 			pool.Count = to.Int32Ptr(v.Size)
+		} else {
+			pool.Count = to.Int32Ptr(3)
 		}
 
 		if len(v.NodeSpec.VMSize) > 0 {
 			pool.VMSize = containerservice.VMSizeTypes(string(v.NodeSpec.VMSize))
+		} else {
+			pool.VMSize = containerservice.StandardD2V2
 		}
 
 		if v.NodeSpec.OsDiskSizeGB > 0 {
-			pool.Count = to.Int32Ptr(v.NodeSpec.OsDiskSizeGB)
+			pool.OsDiskSizeGB = to.Int32Ptr(v.NodeSpec.OsDiskSizeGB)
+		} else {
+			pool.OsDiskSizeGB = to.Int32Ptr(30)
 		}
 
 		if len(v.NodeSpec.VnetSubnetID) > 0 {
@@ -206,17 +215,26 @@ func (mc *ManagedCluster) mergeNodePools(desired *resourcesv1alpha1.ManagedClust
 
 		if v.NodeSpec.MaxPods > 0 {
 			pool.MaxPods = to.Int32Ptr(v.NodeSpec.MaxPods)
+		} else {
+			pool.MaxPods = to.Int32Ptr(110)
 		}
 
-		*mc.AgentPoolProfiles = append(*mc.AgentPoolProfiles, pool)
+		pool.OsType = containerservice.OSType("Linux")
+		pool.StorageProfile = containerservice.StorageProfileTypes("ManagedDisks")
+
+		(*mc.AgentPoolProfiles)[n] = pool
 	}
 
 	if mc.AgentPoolProfiles == nil {
 		mc.AgentPoolProfiles = &[]containerservice.ManagedClusterAgentPoolProfile{
 			{
-				Name:   to.StringPtr("default"),
-				Count:  to.Int32Ptr(3),
-				VMSize: containerservice.StandardD2V2,
+				Count:          to.Int32Ptr(3),
+				MaxPods:        to.Int32Ptr(110),
+				Name:           to.StringPtr("default"),
+				OsDiskSizeGB:   to.Int32Ptr(30),
+				StorageProfile: containerservice.StorageProfileTypes("ManagedDisks"),
+				VMSize:         containerservice.StandardD2V2,
+				OsType:         containerservice.OSType("Linux"),
 			},
 		}
 	}
@@ -233,17 +251,12 @@ func (mc *ManagedCluster) mergeLinuxConfig(desired *resourcesv1alpha1.ManagedClu
 
 	for n, v := range desired.Spec.Linux.AuthorizedKeys {
 		if mc.LinuxProfile.SSH == nil {
-			mc.LinuxProfile.SSH = &containerservice.SSHConfiguration{
-				PublicKeys: &[]containerservice.SSHPublicKey{},
-			}
+			mc.LinuxProfile.SSH = &containerservice.SSHConfiguration{}
+			pubKeys := make([]containerservice.SSHPublicKey, len(desired.Spec.Linux.AuthorizedKeys))
+			mc.LinuxProfile.SSH.PublicKeys = &pubKeys
 		}
 
-		if len(*mc.LinuxProfile.SSH.PublicKeys) > n {
-			(*mc.LinuxProfile.SSH.PublicKeys)[n].KeyData = to.StringPtr(string(v))
-			continue
-		}
-
-		*mc.LinuxProfile.SSH.PublicKeys = append(*mc.LinuxProfile.SSH.PublicKeys, containerservice.SSHPublicKey{KeyData: to.StringPtr(string(v))})
+		(*mc.LinuxProfile.SSH.PublicKeys)[n].KeyData = to.StringPtr(string(v))
 	}
 }
 
