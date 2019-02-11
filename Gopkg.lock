@@ -21,7 +21,9 @@
   digest = "1:fbeb5c5e744541e12716825ee4e6cce4d40ae94f9f5b1830772a5662ae7c97ff"
   name = "github.com/Azure/azure-sdk-for-go"
   packages = [
+    "profiles/latest/cosmos-db/mgmt/documentdb",
     "services/containerservice/mgmt/2018-03-31/containerservice",
+    "services/cosmos-db/mgmt/2015-04-08/documentdb",
     "version",
   ]
   pruneopts = "T"
@@ -1120,7 +1122,9 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/Azure/azure-sdk-for-go/profiles/latest/cosmos-db/mgmt/documentdb",
     "github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2018-03-31/containerservice",
+    "github.com/Azure/azure-sdk-for-go/services/cosmos-db/mgmt/2015-04-08/documentdb",
     "github.com/Azure/go-autorest/autorest",
     "github.com/Azure/go-autorest/autorest/adal",
     "github.com/Azure/go-autorest/autorest/azure",

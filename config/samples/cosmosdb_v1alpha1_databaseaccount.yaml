@@ -5,5 +5,7 @@ metadata:
     controller-tools.k8s.io: "1.0"
   name: databaseaccount-sample
 spec:
-  # Add fields here
-  foo: bar
+  subscriptionID: <insert sub id>
+  resourceGroup: <insert resource group>
+  kind: "MongoDB"
+  location: westus2

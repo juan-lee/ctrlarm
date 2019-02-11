@@ -6,11 +6,26 @@ metadata:
     controller-tools.k8s.io: "1.0"
   name: databaseaccounts.cosmosdb.azure.com
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.resourceGroup
+    name: ResourceGroup
+    type: string
+  - JSONPath: .spec.location
+    name: Location
+    type: string
+  - JSONPath: .spec.kind
+    name: Kind
+    type: string
+  - JSONPath: .status.provisioningState
+    name: State
+    type: string
   group: cosmosdb.azure.com
   names:
     kind: DatabaseAccount
     plural: databaseaccounts
   scope: Namespaced
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       properties:
@@ -27,8 +42,27 @@ spec:
         metadata:
           type: object
         spec:
+          properties:
+            kind:
+              type: string
+            location:
+              type: string
+            resourceGroup:
+              type: string
+            subscriptionID:
+              description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                Important: Run "make" to regenerate code after modifying this file'
+              type: string
           type: object
         status:
+          properties:
+            connectionString:
+              type: string
+            provisioningState:
+              description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                of cluster Important: Run "make" to regenerate code after modifying
+                this file'
+              type: string
           type: object
   version: v1alpha1
 status:

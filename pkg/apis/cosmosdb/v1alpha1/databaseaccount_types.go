@@ -27,12 +27,18 @@ import (
 type DatabaseAccountSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	SubscriptionID string `json:"subscriptionID,omitempty"`
+	ResourceGroup  string `json:"resourceGroup,omitempty"`
+	Kind           string `json:"kind,omitempty"`
+	Location       string `json:"location,omitempty"`
 }
 
 // DatabaseAccountStatus defines the observed state of DatabaseAccount
 type DatabaseAccountStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	ProvisioningState string `json:"provisioningState,omitempty"`
+	ConnectionString  string `json:"connectionString,omitempty"`
 }
 
 // +genclient
@@ -40,6 +46,11 @@ type DatabaseAccountStatus struct {
 
 // DatabaseAccount is the Schema for the databaseaccounts API
 // +k8s:openapi-gen=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ResourceGroup",type="string",JSONPath=".spec.resourceGroup",description=""
+// +kubebuilder:printcolumn:name="Location",type="string",JSONPath=".spec.location",description=""
+// +kubebuilder:printcolumn:name="Kind",type="string",JSONPath=".spec.kind",description=""
+// +kubebuilder:printcolumn:name="State",type="string",JSONPath=".status.provisioningState",description=""
 type DatabaseAccount struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
