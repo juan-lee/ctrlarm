@@ -19,11 +19,11 @@ package managedcluster
 import (
 	"context"
 
-	containerservicesv1alpha1 "dev.azure.com/juan-lee/ctrlarm/pkg/apis/containerservices/v1alpha1"
-	"dev.azure.com/juan-lee/ctrlarm/pkg/services/azure"
-	"dev.azure.com/juan-lee/ctrlarm/pkg/services/azure/config"
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2018-03-31/containerservice"
 	"github.com/Azure/go-autorest/autorest"
+	containerservicesv1alpha1 "github.com/juan-lee/ctrlarm/pkg/apis/containerservices/v1alpha1"
+	"github.com/juan-lee/ctrlarm/pkg/services/azure"
+	"github.com/juan-lee/ctrlarm/pkg/services/azure/config"
 	corev1 "k8s.io/api/core/v1"
 )
 

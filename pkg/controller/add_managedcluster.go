@@ -17,7 +17,7 @@ limitations under the License.
 package controller
 
 import (
-	"dev.azure.com/juan-lee/ctrlarm/pkg/controller/managedcluster"
+	"github.com/juan-lee/ctrlarm/pkg/controller/managedcluster"
 )
 
 func init() {

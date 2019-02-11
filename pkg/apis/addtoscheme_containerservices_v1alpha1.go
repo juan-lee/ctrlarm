@@ -17,7 +17,7 @@ limitations under the License.
 package apis
 
 import (
-	"dev.azure.com/juan-lee/ctrlarm/pkg/apis/containerservices/v1alpha1"
+	"github.com/juan-lee/ctrlarm/pkg/apis/containerservices/v1alpha1"
 )
 
 func init() {

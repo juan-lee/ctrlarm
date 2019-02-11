@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"reflect"
 
-	resourcesv1alpha1 "dev.azure.com/juan-lee/ctrlarm/pkg/apis/containerservices/v1alpha1"
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2018-03-31/containerservice"
 	"github.com/Azure/go-autorest/autorest/to"
+	resourcesv1alpha1 "github.com/juan-lee/ctrlarm/pkg/apis/containerservices/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 )
 

@@ -21,7 +21,7 @@ import (
 	"net/url"
 	"strings"
 
-	"dev.azure.com/juan-lee/ctrlarm/pkg/services/azure/config"
+	"github.com/juan-lee/ctrlarm/pkg/services/azure/config"
 
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"

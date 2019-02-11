@@ -20,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	containerservicesv1alpha1 "dev.azure.com/juan-lee/ctrlarm/pkg/apis/containerservices/v1alpha1"
+	containerservicesv1alpha1 "github.com/juan-lee/ctrlarm/pkg/apis/containerservices/v1alpha1"
 	"github.com/onsi/gomega"
 	"golang.org/x/net/context"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

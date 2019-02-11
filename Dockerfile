@@ -2,16 +2,16 @@
 FROM golang:1.10.3 as builder
 
 # Copy in the go src
-WORKDIR /go/src/dev.azure.com/juan-lee/ctrlarm
+WORKDIR /go/src/github.com/juan-lee/ctrlarm
 COPY pkg/    pkg/
 COPY cmd/    cmd/
 COPY vendor/ vendor/
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager dev.azure.com/juan-lee/ctrlarm/cmd/manager
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o manager github.com/juan-lee/ctrlarm/cmd/manager
 
 # Copy the controller-manager into a thin image
 FROM ubuntu:latest
 WORKDIR /
-COPY --from=builder /go/src/dev.azure.com/juan-lee/ctrlarm/manager .
+COPY --from=builder /go/src/github.com/juan-lee/ctrlarm/manager .
 ENTRYPOINT ["/manager"]

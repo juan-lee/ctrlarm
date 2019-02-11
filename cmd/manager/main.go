@@ -20,9 +20,9 @@ import (
 	"flag"
 	"os"
 
-	"dev.azure.com/juan-lee/ctrlarm/pkg/apis"
-	"dev.azure.com/juan-lee/ctrlarm/pkg/controller"
-	"dev.azure.com/juan-lee/ctrlarm/pkg/webhook"
+	"github.com/juan-lee/ctrlarm/pkg/apis"
+	"github.com/juan-lee/ctrlarm/pkg/controller"
+	"github.com/juan-lee/ctrlarm/pkg/webhook"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
