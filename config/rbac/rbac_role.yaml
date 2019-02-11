@@ -5,6 +5,46 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - apps
+  resources:
+  - deployments/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
+  - cosmosdb.azure.com
+  resources:
+  - databaseaccounts
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - cosmosdb.azure.com
+  resources:
+  - databaseaccounts/status
+  verbs:
+  - get
+  - update
+  - patch
+- apiGroups:
   - containerservices.azure.com
   resources:
   - managedclusters
