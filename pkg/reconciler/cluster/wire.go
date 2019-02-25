@@ -36,7 +36,7 @@ func NewReconciler() (*Reconciler, error) {
 }
 
 func provideLogger() logr.Logger {
-	return logf.Log.WithName("azure-reconciler")
+	return logf.Log.WithName("reconciler")
 }
 
 func provideNetworkClient() (*aznet.VirtualNetworksClient, error) {

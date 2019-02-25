@@ -5,5 +5,17 @@ metadata:
     controller-tools.k8s.io: "1.0"
   name: cluster-sample
 spec:
-  # Add fields here
-  foo: bar
+  config:
+    controlPlaneEndpoint: jpang-foobar.westus2.cloudapp.azure.com:6443
+    certificatesDir: /etc/kubernetes/pki
+    dns:
+      type: CoreDNS
+    etcd:
+      local:
+        dataDir: /var/lib/etcd
+    imageRepository: k8s.gcr.io
+    kubernetesVersion: v1.12.5
+    networking:
+      serviceSubnet: 10.96.0.0/12
+      podSubnet: ""
+      dnsDomain: cluster.local

@@ -41,12 +41,12 @@ func provideReconciler(log logr.Logger, nr *network.Reconciler) *Reconciler {
 }
 
 func (r Reconciler) Reconcile(ctx context.Context, c *k8sv1alpha1.Cluster) (*k8sv1alpha1.ClusterStatus, error) {
-	r.log.Info("Reconciling network")
+	r.log.Info("Reconciling cluster")
 	status, err := r.net.Reconcile(ctx, &c.Spec.Config.Networking)
 	if err != nil {
 		r.log.Error(err, "Failed to reconcile network")
 		return status, err
 	}
-	r.log.Info("Network Reconciled")
+	r.log.Info("Cluster Reconciled")
 	return status, nil
 }

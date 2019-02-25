@@ -30,7 +30,7 @@ func NewReconciler() (*Reconciler, error) {
 // wire.go:
 
 func provideLogger() logr.Logger {
-	return log.Log.WithName("azure-reconciler")
+	return log.Log.WithName("reconciler")
 }
 
 func provideNetworkClient() (*network2.VirtualNetworksClient, error) {

@@ -17,7 +17,9 @@ package network
 import (
 	"context"
 
+	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2018-11-01/network"
 	aznet "github.com/Azure/azure-sdk-for-go/services/network/mgmt/2018-11-01/network"
+	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/go-logr/logr"
 	k8sv1alpha1 "github.com/juan-lee/ctrlarm/pkg/apis/kubernetes/v1alpha1"
 	kubeadmv1beta1 "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm/v1beta1"
@@ -37,5 +39,19 @@ func ProvideReconciler(log logr.Logger, vc *aznet.VirtualNetworksClient) *Reconc
 }
 
 func (r Reconciler) Reconcile(ctx context.Context, c *kubeadmv1beta1.Networking) (*k8sv1alpha1.ClusterStatus, error) {
+	r.log.Info("Reconciling network")
+	_, err := r.vnetClient.CreateOrUpdate(ctx, "jpang-rg", "jpang-rg-a90s", aznet.VirtualNetwork{
+		Location: to.StringPtr("some-location"),
+		VirtualNetworkPropertiesFormat: &network.VirtualNetworkPropertiesFormat{
+			AddressSpace: &network.AddressSpace{
+				AddressPrefixes: &[]string{"10.0.0.0/8"},
+			},
+		},
+	})
+	if err != nil {
+		r.log.Error(err, "Failed to reconcile network")
+		return nil, err
+	}
+	r.log.Info("Network Reconciled")
 	return nil, nil
 }
