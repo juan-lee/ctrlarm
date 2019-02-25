@@ -18,6 +18,11 @@ required = [
 
 [prune]
   go-tests = true
+  unused-packages = true
+
+  [[prune.project]]
+    name = "sigs.k8s.io/controller-tools"
+    unused-packages = false
 
 [[constraint]]
   name = "github.com/Azure/azure-sdk-for-go"
