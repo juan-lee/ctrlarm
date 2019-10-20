@@ -1,3 +1,7 @@
-version: "1"
-domain: azure.com
+version: "2"
+domain: jpang.dev
 repo: github.com/juan-lee/ctrlarm
+resources:
+- group: azure
+  version: v1alpha1
+  kind: ManagedCluster

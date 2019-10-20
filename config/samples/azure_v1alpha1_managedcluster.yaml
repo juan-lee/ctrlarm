@@ -1,0 +1,7 @@
+apiVersion: azure.jpang.dev/v1alpha1
+kind: ManagedCluster
+metadata:
+  name: managedcluster-sample
+spec:
+  # Add fields here
+  foo: bar
