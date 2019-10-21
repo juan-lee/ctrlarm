@@ -9,7 +9,7 @@ apiVersion: v1
 kind: Secret
 type: Opaque
 data:
-  credentials.json: $(AZURE_B64ENCODED_CREDENTIALS)
+  credentials.json: ${AZURE_B64ENCODED_CREDENTIALS}
 metadata:
   name: azure-credentials
   namespace: system

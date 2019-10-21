@@ -16,22 +16,26 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // ManagedClusterSpec defines the desired state of ManagedCluster
 type ManagedClusterSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	AzureMeta `json:",inline"`
+
+	// Name defines the name of the azure kubernetes cluster resource.
+	Name string `json:"name,omitempty"`
+
+	// NodePools defines the node pools in an azure kubernetes cluster resource.
+	NodePools []NodePool `json:"nodePools"`
+
+	// CredentialsRef is a reference to the azure kubernetes cluster credentials.
+	CredentialsRef corev1.LocalObjectReference `json:"credentialsRef,omitempty"`
 }
 
 // ManagedClusterStatus defines the observed state of ManagedCluster
 type ManagedClusterStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 }
 
 // +kubebuilder:object:root=true
@@ -46,6 +50,7 @@ type ManagedCluster struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // ManagedClusterList contains a list of ManagedCluster
 type ManagedClusterList struct {
@@ -54,6 +59,6 @@ type ManagedClusterList struct {
 	Items           []ManagedCluster `json:"items"`
 }
 
-func init() {
+func init() { //nolint:gochecknoinits
 	SchemeBuilder.Register(&ManagedCluster{}, &ManagedClusterList{})
 }

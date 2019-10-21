@@ -34,7 +34,7 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 )
 
-func init() {
+func init() { //nolint:gochecknoinits
 	_ = clientgoscheme.AddToScheme(scheme)
 
 	_ = azurev1alpha1.AddToScheme(scheme)

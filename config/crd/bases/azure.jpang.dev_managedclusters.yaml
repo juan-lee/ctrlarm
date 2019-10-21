@@ -1,0 +1,93 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  name: managedclusters.azure.jpang.dev
+spec:
+  group: azure.jpang.dev
+  names:
+    kind: ManagedCluster
+    listKind: ManagedClusterList
+    plural: managedclusters
+    singular: managedcluster
+  scope: ""
+  validation:
+    openAPIV3Schema:
+      description: ManagedCluster is the Schema for the managedclusters API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: ManagedClusterSpec defines the desired state of ManagedCluster
+          properties:
+            credentialsRef:
+              description: CredentialsRef is a reference to the azure kubernetes cluster
+                credentials.
+              properties:
+                name:
+                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    TODO: Add other useful fields. apiVersion, kind, uid?'
+                  type: string
+              type: object
+            location:
+              description: Location is the region where the azure resource resides.
+              type: string
+            name:
+              description: Name defines the name of the azure kubernetes cluster resource.
+              type: string
+            nodePools:
+              description: NodePools defines the node pools in an azure kubernetes
+                cluster resource.
+              items:
+                description: NodePool defines a node pool for an azure cluster resource.
+                properties:
+                  capacity:
+                    description: Capacity is the number of VMs in a node pool.
+                    format: int32
+                    type: integer
+                  name:
+                    description: Name of the node pool.
+                    type: string
+                  sku:
+                    description: SKU of the VMs in the node pool.
+                    type: string
+                type: object
+              type: array
+            resourceGroup:
+              description: ResourceGroup is the resource group name for an azure resource.
+              pattern: ^[-\w\._\(\)]+$
+              type: string
+            subscriptionID:
+              description: SubscriptionID is the subscription id for an azure resource.
+              pattern: ^[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$
+              type: string
+          required:
+          - nodePools
+          type: object
+        status:
+          description: ManagedClusterStatus defines the observed state of ManagedCluster
+          type: object
+      type: object
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
