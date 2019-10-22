@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"reflect"
 
 	"github.com/Azure/azure-sdk-for-go/services/containerservice/mgmt/2019-08-01/containerservice"
@@ -47,59 +48,29 @@ type ManagedClusterReconciler struct {
 
 type managedClusterClient struct {
 	*containerservice.ManagedClustersClient
+
+	instance *azurev1.ManagedCluster
 }
 
 type managedCluster struct {
-	Spec         *azurev1.ManagedClusterSpec
-	Status       *azurev1.ManagedClusterStatus
+	azurev1.ManagedCluster
 	ClientID     string
 	ClientSecret string
 }
 
-func newClient(subscriptionID string) (*managedClusterClient, error) {
-	managedClusters := containerservice.NewManagedClustersClient(subscriptionID)
+func newClient(instance *azurev1.ManagedCluster) (*managedClusterClient, error) {
+	managedClusters := containerservice.NewManagedClustersClient(instance.Spec.SubscriptionID)
 	err := authorizeFromFile(&managedClusters.Client)
 	if err != nil {
 		return nil, err
 	}
-	return &managedClusterClient{&managedClusters}, nil
+	return &managedClusterClient{
+		instance:              instance,
+		ManagedClustersClient: &managedClusters,
+	}, nil
 }
 
-func makeManagedCluster(instance *managedCluster, mc *containerservice.ManagedCluster) *managedCluster {
-	result := &managedCluster{
-		Spec: &azurev1.ManagedClusterSpec{
-			AzureMeta: azurev1.AzureMeta{
-				SubscriptionID: instance.Spec.SubscriptionID,
-				ResourceGroup:  instance.Spec.AzureMeta.ResourceGroup,
-				Location:       *mc.Location,
-			},
-			Name:      *mc.Name,
-			NodePools: makeNodePools(*mc.AgentPoolProfiles),
-			CredentialsRef: corev1.LocalObjectReference{
-				Name: instance.Spec.CredentialsRef.Name,
-			},
-		},
-		Status:       instance.Status.DeepCopy(),
-		ClientID:     instance.ClientID,
-		ClientSecret: instance.ClientSecret,
-	}
-	return result
-}
-
-func makeNodePools(agentpools []containerservice.ManagedClusterAgentPoolProfile) []azurev1.NodePool {
-	var nodepools []azurev1.NodePool
-	for n := range agentpools {
-		nodepools = append(nodepools, azurev1.NodePool{
-			Name:     *agentpools[n].Name,
-			SKU:      string(agentpools[n].VMSize),
-			Capacity: *agentpools[n].Count,
-		})
-	}
-	return nodepools
-}
-
-// +kubebuilder:rbac:groups=azure.jpang.dev,resources=managedclusters,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=azure.jpang.dev,resources=managedclusters/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=azure.jpang.dev,resources=managedclusters;managedclusters/status,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
 
 func (r *ManagedClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -128,88 +99,148 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		return ctrl.Result{}, nil
 	}
 
-	managedClusters, err := newClient(instance.Spec.SubscriptionID)
+	managedClusters, err := newClient(&instance)
 	if err != nil {
 		log.Error(err, "unable to authorize containerservice client")
 		return ctrl.Result{}, nil
 	}
 
 	desired := managedCluster{
-		Spec:         instance.Spec.DeepCopy(),
-		Status:       instance.Status.DeepCopy(),
-		ClientID:     string(creds.Data["clientID"]),
-		ClientSecret: string(creds.Data["clientSecret"]),
+		ManagedCluster: *instance.DeepCopy(),
+		ClientID:       string(creds.Data["clientID"]),
+		ClientSecret:   string(creds.Data["clientSecret"]),
 	}
-	found := managedCluster{
-		Spec:         instance.Spec.DeepCopy(),
-		Status:       instance.Status.DeepCopy(),
-		ClientID:     string(creds.Data["clientID"]),
-		ClientSecret: string(creds.Data["clientSecret"]),
-	}
+	found := managedCluster{}
 	err = managedClusters.Get(ctx, &found)
 	if err != nil && notFound(err) {
+		log.Info("Creating managedCluster", "desired.Spec", desired.Spec)
 		err = managedClusters.Create(ctx, &desired)
 		if err != nil {
 			log.Error(err, "unable to create cluster")
 			return ctrl.Result{}, nil
 		}
+		err = r.Status().Update(ctx, &desired.ManagedCluster)
+		if err != nil {
+			log.Error(err, "unable to update cluster status")
+			return ctrl.Result{}, nil
+		}
 		return ctrl.Result{}, nil
 	} else if err != nil {
 		log.Error(err, "unable to get managedCluster")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	}
 
 	if !reflect.DeepEqual(desired.Spec, found.Spec) {
+		log.Info("Updating managedCluster", "desired.Spec", desired.Spec)
 		found.Spec = desired.Spec
 		err = managedClusters.Update(ctx, &found)
 		if err != nil {
 			log.Error(err, "unable to update cluster")
-			return ctrl.Result{}, err
+			return ctrl.Result{}, nil
+		}
+	}
+
+	if !reflect.DeepEqual(desired.Status, found.Status) {
+		log.Info("Updating Status", "found.Status", found.Status)
+		err = r.Status().Update(ctx, &found.ManagedCluster)
+		if err != nil {
+			log.Error(err, "unable to update cluster status")
+			return ctrl.Result{}, nil
 		}
 	}
 	return ctrl.Result{}, nil
 }
 
-func (mc managedClusterClient) Get(ctx context.Context, instance *managedCluster) error {
-	found, err := mc.ManagedClustersClient.Get(ctx, instance.Spec.ResourceGroup, instance.Spec.Name)
+func (c managedClusterClient) Get(ctx context.Context, instance *managedCluster) error {
+	found, err := c.ManagedClustersClient.Get(ctx, c.instance.Spec.ResourceGroup, c.instance.Spec.Name)
 	if err != nil {
 		return err
 	}
-	result := makeManagedCluster(instance, &found)
-	result.Spec.DeepCopyInto(instance.Spec)
-	result.Status.DeepCopyInto(instance.Status)
+	result, err := c.makeManagedCluster(&found)
+	if err != nil {
+		return err
+	}
+	result.DeepCopyInto(&instance.ManagedCluster)
 	return nil
 }
 
-func (mc managedClusterClient) Create(ctx context.Context, instance *managedCluster) error {
-	return mc.Update(ctx, instance)
+func (c managedClusterClient) Create(ctx context.Context, instance *managedCluster) error {
+	return c.Update(ctx, instance)
 }
 
-func (mc managedClusterClient) Update(ctx context.Context, instance *managedCluster) error {
-	future, err := mc.CreateOrUpdate(ctx, instance.Spec.ResourceGroup, instance.Spec.Name, *instance.Parameters())
+func (c managedClusterClient) Update(ctx context.Context, instance *managedCluster) error {
+	future, err := c.CreateOrUpdate(ctx, instance.Spec.ResourceGroup, instance.Spec.Name, *instance.Parameters())
 	if err != nil {
 		return err
 	}
-	err = future.WaitForCompletionRef(ctx, mc.Client)
+	err = future.WaitForCompletionRef(ctx, c.Client)
 	if err != nil {
 		return err
 	}
-	found, err := future.Result(*mc.ManagedClustersClient)
+	found, err := future.Result(*c.ManagedClustersClient)
 	if err != nil {
 		return err
 	}
-	result := makeManagedCluster(instance, &found)
-	result.Spec.DeepCopyInto(instance.Spec)
-	result.Status.DeepCopyInto(instance.Status)
+	result, err := c.makeManagedCluster(&found)
+	if err != nil {
+		return err
+	}
+	result.DeepCopyInto(&instance.ManagedCluster)
 	return nil
 }
 
-func (mc managedCluster) Parameters() *containerservice.ManagedCluster {
+func (c managedClusterClient) makeManagedCluster(mc *containerservice.ManagedCluster) (*managedCluster, error) {
+	if mc == nil {
+		return nil, errors.New("containerservice.ManagedCluster is nil")
+	}
+	if mc.ManagedClusterProperties == nil {
+		return nil, errors.New("containerservice.ManagedClusterProperties is nil")
+	}
+	return &managedCluster{
+		ManagedCluster: azurev1.ManagedCluster{
+			ObjectMeta: *c.instance.ObjectMeta.DeepCopy(),
+			Spec: azurev1.ManagedClusterSpec{
+				AzureMeta: azurev1.AzureMeta{
+					SubscriptionID: c.instance.Spec.SubscriptionID,
+					ResourceGroup:  c.instance.Spec.AzureMeta.ResourceGroup,
+					Location:       *mc.Location,
+				},
+				Name:      *mc.Name,
+				Version:   *mc.KubernetesVersion,
+				NodePools: makeNodePools(*mc.AgentPoolProfiles),
+				CredentialsRef: corev1.LocalObjectReference{
+					Name: c.instance.Spec.CredentialsRef.Name,
+				},
+			},
+			Status: azurev1.ManagedClusterStatus{
+				ID:    *mc.ID,
+				FQDN:  *mc.Fqdn,
+				State: *mc.ProvisioningState,
+			},
+		},
+		ClientID: *mc.ServicePrincipalProfile.ClientID,
+	}, nil
+}
+
+func makeNodePools(agentpools []containerservice.ManagedClusterAgentPoolProfile) []azurev1.NodePool {
+	var nodepools []azurev1.NodePool
+	for n := range agentpools {
+		nodepools = append(nodepools, azurev1.NodePool{
+			Name:     *agentpools[n].Name,
+			SKU:      string(agentpools[n].VMSize),
+			Capacity: *agentpools[n].Count,
+		})
+	}
+	return nodepools
+}
+
+func (mc *managedCluster) Parameters() *containerservice.ManagedCluster {
 	return &containerservice.ManagedCluster{
 		Name:     &mc.Spec.Name,
 		Location: &mc.Spec.Location,
 		ManagedClusterProperties: &containerservice.ManagedClusterProperties{
-			DNSPrefix: &mc.Spec.Name,
+			KubernetesVersion: &mc.Spec.Version,
+			DNSPrefix:         &mc.Spec.Name,
 			LinuxProfile: &containerservice.LinuxProfile{
 				AdminUsername: to.StringPtr("azureuser"),
 				SSH: &containerservice.SSHConfiguration{

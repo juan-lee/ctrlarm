@@ -13,6 +13,8 @@ spec:
     plural: managedclusters
     singular: managedcluster
   scope: ""
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       description: ManagedCluster is the Schema for the managedclusters API
@@ -48,7 +50,7 @@ spec:
               description: Name defines the name of the azure kubernetes cluster resource.
               type: string
             nodePools:
-              description: NodePools defines the node pools in an azure kubernetes
+              description: NodePools defines the node pools in a azure kubernetes
                 cluster resource.
               items:
                 description: NodePool defines a node pool for an azure cluster resource.
@@ -73,11 +75,25 @@ spec:
               description: SubscriptionID is the subscription id for an azure resource.
               pattern: ^[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}$
               type: string
+            version:
+              description: Version defines the kubernetes version of the cluster.
+              type: string
           required:
           - nodePools
           type: object
         status:
           description: ManagedClusterStatus defines the observed state of ManagedCluster
+          properties:
+            fqdn:
+              description: FQDN represents the cluster api server endpoint.
+              type: string
+            id:
+              description: ID represents the cluster resource id.
+              type: string
+            state:
+              description: State represents the provisioning state of the cluster
+                resource.
+              type: string
           type: object
       type: object
   version: v1alpha1

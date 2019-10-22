@@ -27,7 +27,10 @@ type ManagedClusterSpec struct {
 	// Name defines the name of the azure kubernetes cluster resource.
 	Name string `json:"name,omitempty"`
 
-	// NodePools defines the node pools in an azure kubernetes cluster resource.
+	// Version defines the kubernetes version of the cluster.
+	Version string `json:"version,omitempty"`
+
+	// NodePools defines the node pools in a azure kubernetes cluster resource.
 	NodePools []NodePool `json:"nodePools"`
 
 	// CredentialsRef is a reference to the azure kubernetes cluster credentials.
@@ -36,9 +39,18 @@ type ManagedClusterSpec struct {
 
 // ManagedClusterStatus defines the observed state of ManagedCluster
 type ManagedClusterStatus struct {
+	// ID represents the cluster resource id.
+	ID string `json:"id,omitempty"`
+
+	// State represents the provisioning state of the cluster resource.
+	State string `json:"state,omitempty"`
+
+	// FQDN represents the cluster api server endpoint.
+	FQDN string `json:"fqdn,omitempty"`
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // ManagedCluster is the Schema for the managedclusters API
 type ManagedCluster struct {
@@ -50,7 +62,6 @@ type ManagedCluster struct {
 }
 
 // +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
 
 // ManagedClusterList contains a list of ManagedCluster
 type ManagedClusterList struct {

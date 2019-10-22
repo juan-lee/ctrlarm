@@ -10,6 +10,7 @@ rules:
   - azure.jpang.dev
   resources:
   - managedclusters
+  - managedclusters/status
   verbs:
   - create
   - delete
@@ -18,14 +19,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - azure.jpang.dev
-  resources:
-  - managedclusters/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - ""
   resources:
