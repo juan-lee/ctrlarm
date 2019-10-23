@@ -79,7 +79,7 @@ func (r *ManagedClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) { //nolint:funlen,gocyclo
 	ctx := context.Background()
 	log := r.Log.WithValues("managedcluster", req.NamespacedName)
 
@@ -88,6 +88,7 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		log.Error(err, "unable to fetch managedCluster")
 		return ctrl.Result{}, ignoreNotFound(err)
 	}
+
 	log.Info("Reconciling managedCluster", "instance", instance)
 
 	var creds corev1.Secret
@@ -110,6 +111,22 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		ClientID:       string(creds.Data["clientID"]),
 		ClientSecret:   string(creds.Data["clientSecret"]),
 	}
+
+	if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
+		if instance.HasFinalizer() {
+			if err = managedClusters.Delete(ctx, &desired); err != nil {
+				log.Error(err, "unable to delete cluster")
+				return ctrl.Result{}, nil
+			}
+			instance.RemoveFinalizer()
+			if err = r.Update(ctx, &instance); err != nil {
+				log.Error(err, "unable to update cluster spec")
+				return ctrl.Result{}, nil
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
 	found := managedCluster{}
 	err = managedClusters.Get(ctx, &found)
 	if err != nil && notFound(err) {
@@ -117,6 +134,11 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		err = managedClusters.Create(ctx, &desired)
 		if err != nil {
 			log.Error(err, "unable to create cluster")
+			return ctrl.Result{}, nil
+		}
+		desired.AddFinalizer()
+		if err = r.Update(ctx, &desired.ManagedCluster); err != nil {
+			log.Error(err, "unable to update cluster spec")
 			return ctrl.Result{}, nil
 		}
 		err = r.Status().Update(ctx, &desired.ManagedCluster)
@@ -186,6 +208,22 @@ func (c managedClusterClient) Update(ctx context.Context, instance *managedClust
 		return err
 	}
 	result.DeepCopyInto(&instance.ManagedCluster)
+	return nil
+}
+
+func (c managedClusterClient) Delete(ctx context.Context, instance *managedCluster) error {
+	future, err := c.ManagedClustersClient.Delete(ctx, instance.Spec.ResourceGroup, instance.Spec.Name)
+	if err != nil {
+		return err
+	}
+	err = future.WaitForCompletionRef(ctx, c.Client)
+	if err != nil {
+		return err
+	}
+	_, err = future.Result(*c.ManagedClustersClient)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

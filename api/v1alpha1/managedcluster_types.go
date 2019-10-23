@@ -20,6 +20,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const ManagedClusterFinalizer = "managedcluster.azure.jpang.dev"
+
 // ManagedClusterSpec defines the desired state of ManagedCluster
 type ManagedClusterSpec struct {
 	AzureMeta `json:",inline"`
@@ -72,4 +74,30 @@ type ManagedClusterList struct {
 
 func init() { //nolint:gochecknoinits
 	SchemeBuilder.Register(&ManagedCluster{}, &ManagedClusterList{})
+}
+
+func (in *ManagedCluster) HasFinalizer() bool {
+	for _, f := range in.ObjectMeta.Finalizers {
+		if f == ManagedClusterFinalizer {
+			return true
+		}
+	}
+	return false
+}
+
+func (in *ManagedCluster) AddFinalizer() {
+	if !in.HasFinalizer() {
+		in.ObjectMeta.Finalizers = append(in.ObjectMeta.Finalizers, ManagedClusterFinalizer)
+	}
+}
+
+func (in *ManagedCluster) RemoveFinalizer() {
+	var result []string
+	for _, f := range in.ObjectMeta.Finalizers {
+		if f == ManagedClusterFinalizer {
+			continue
+		}
+		result = append(result, f)
+	}
+	in.ObjectMeta.Finalizers = result
 }
