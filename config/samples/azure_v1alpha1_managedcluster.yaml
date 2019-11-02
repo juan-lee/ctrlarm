@@ -20,6 +20,6 @@ spec:
   nodePools:
   - name: default
     sku: Standard_D2s_v3
-    capacity: 3
+    capacity: 1
   credentialsRef:
     name: credentials
