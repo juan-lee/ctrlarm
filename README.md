@@ -1,46 +1,35 @@
 # ctrlarm
 
 ## Overview
-ctrlarm uses (kubebuilder)[https://github.com/kubernetes-sigs/kubebuilder] libraries and tools to create Kubernetes APIs for managing Azure resources.
+ctrlarm uses [kubebuilder](https://github.com/kubernetes-sigs/kubebuilder) libraries and tools to create Kubernetes APIs for managing Azure resources.
 
 - Azure Kubernetes Service (preview)
-- CosmosDB (preview)
 - _More to come..._
 
+## Prerequisites
+- (kustomize)[https://github.com/kubernetes-sigs/kustomize]
+- (kubebuilder)[https://github.com/kubernetes-sigs/kubebuilder]
+
 ## Quickstart
+``` bash
+AZURE_SUBSCRIPTION_ID="$(az account show | jq -j -r '.id')"
+AZURE_AUTH_LOCATION="${HOME}/creds.json"
 
-### Prerequisites
-- Install (dep)[https://github.com/golang/dep]
-- Install (kustomize)[https://github.com/kubernetes-sigs/kustomize]
-- Install (kubebuilder)[https://github.com/kubernetes-sigs/kubebuilder]
-- Install and Start (minikube)[https://github.com/kubernetes/minikube]
+# Create Service Principal used by the ctrlarm controller
+az ad sp create-for-rbac --sdk-auth \
+    --role "Contributor" \
+    --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}" > "${AZURE_AUTH_LOCATION}"
 
-### Customize Sample
-Update config/samples/cosmosdb_v1alpha1_databaseaccount.yaml with your own azure subscription ID and resource group.
+AZURE_B64ENCODED_CREDENTIALS="$(cat ${AZURE_AUTH_LOCATION} | base64 -w0)"
+AZURE_CLIENT_ID="$(cat ${AZURE_AUTH_LOCATION} | jq -j -r '.clientId' | base64 -w0)"
+AZURE_CLIENT_SECRET="$(cat ${AZURE_AUTH_LOCATION} | jq -j -r '.clientSecret' | base64 -w0)"
+
+# Replace "your-docker-registry"
+IMG=your-docker-registry/ctrlarm-controller:latest
+
+# Build and Deploy
+make docker-build docker-push install deploy
+
+# Provision an AKS cluster
+cat config/samples/azure_v1alpha1_managedcluster.yaml | envsubst | kubectl apply -f -
 ```
-apiVersion: cosmosdb.azure.com/v1alpha1
-kind: DatabaseAccount
-metadata:
-  labels:
-    controller-tools.k8s.io: "1.0"
-  name: databaseaccount-sample
-spec:
-  subscriptionID: <***insert sub id***>
-  resourceGroup: <***insert resource group***>
-  kind: "MongoDB"
-  location: westus2
-```
-
-### Create a Sample Resource
-```
-export AZURE_ENVIRONMENT=AzurePublicCloud
-export AZURE_SUBSCRIPTION_ID=<*** insert subscription id ***>
-export AZURE_TENANT_ID=<*** insert tenant id ***>
-export AZURE_CLIENT_ID=<*** insert client id ***>
-export AZURE_CLIENT_SECRET=<*** insert client secret ***>
-
-make install
-make run
-kubectl apply -f config/samples/cosmosdb_v1alpha1_databaseaccount.yaml
-```
-

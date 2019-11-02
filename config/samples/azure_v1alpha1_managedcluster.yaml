@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Secret
+type: Opaque
+data:
+  clientID: "${AZURE_CLIENT_ID}"
+  clientSecret: "${AZURE_CLIENT_SECRET}"
+metadata:
+  name: credentials
+---
+apiVersion: azure.jpang.dev/v1alpha1
+kind: ManagedCluster
+metadata:
+  name: managedcluster-sample
+spec:
+  subscriptionID: "${AZURE_SUBSCRIPTION_ID}"
+  resourceGroup: ctrlarm-cluster
+  location: southcentralus
+  name: ctrlarm
+  version: 1.15.3
+  nodePools:
+  - name: default
+    sku: Standard_D2s_v3
+    capacity: 1
+  credentialsRef:
+    name: credentials
