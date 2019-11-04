@@ -6,6 +6,11 @@ metadata:
   creationTimestamp: null
   name: managedclusters.azure.jpang.dev
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.state
+    description: Provisioning state of the cluster resource
+    name: State
+    type: string
   group: azure.jpang.dev
   names:
     kind: ManagedCluster

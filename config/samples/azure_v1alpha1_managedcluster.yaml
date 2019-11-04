@@ -16,7 +16,7 @@ spec:
   resourceGroup: ctrlarm-cluster
   location: southcentralus
   name: ctrlarm
-  version: 1.15.3
+  version: 1.15.4
   nodePools:
   - name: default
     sku: Standard_D2s_v3
