@@ -1,0 +1,33 @@
+name: 1.0.$(Date:yyyyMMdd)$(Rev:rr)
+
+trigger:
+  batch: true
+  branches:
+    include: 
+    - master
+  paths:
+    exclude:
+    - 'README.md'
+    - 'docs'
+    - 'azure-pipelines.yaml'
+
+variables:
+  - name: 'goPath'
+    value: '$(Agent.HomeDirectory)/go'
+  - name:   'goAppName'
+    value: 'github.com/juan-lee/ctrlarm'
+  - group: 'aks-prod-registry'
+
+jobs:
+- template: '.pipelines/job-build.yaml'
+  parameters:
+    name: 'build_validator'
+    pool:
+      vmImage: 'ubuntu-16.04'
+    goPath: $(goPath)
+    goAppName: $(goAppName)
+    imagePrefix: $(IMAGE_PREFIX)
+    prodRegistry: $(PROD_REGISTRY)
+    registryUsername: $(REGISTRY_USERNAME)
+    registryPassword: $(REGISTRY_PASSWORD)
+    mutableVersion: $(MUTABLE_VERSION)
