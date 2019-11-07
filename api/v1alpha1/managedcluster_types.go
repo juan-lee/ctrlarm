@@ -53,6 +53,7 @@ type ManagedClusterStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="State",type="string",JSONPath=".status.state",description="Provisioning state of the cluster resource"
 
 // ManagedCluster is the Schema for the managedclusters API
 type ManagedCluster struct {
