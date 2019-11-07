@@ -1,0 +1,62 @@
+parameters:
+  name: ''
+  pool: ''
+  goPath: ''
+  goAppName: ''
+  prodRegistry: ''
+  registryUsername: ''
+  registryPassword: ''
+  imagePrefix: ''
+  mutableVersion: ''
+
+jobs:
+  - job: ${{ parameters.name }}
+    pool: ${{ parameters.pool }}
+    steps:
+    - task: GoTool@0
+      displayName: Use Go 1.13
+      inputs:
+        version: '1.13.3'
+        goPath: ${{ parameters.goPath }}
+
+    - script: echo "##vso[task.setvariable variable=path;isOutput=true]$PATH"
+      name: existingpath
+
+    - bash: |
+        export PATH="$GOPATH/bin:$PATH"
+        mkdir -p $APP_PATH
+        cp -Rp "$SYSTEM_DEFAULTWORKINGDIRECTORY/." $APP_PATH
+      displayName: put code in gopath
+      env:
+        APP_PATH: ${{ format('{0}/src/{1}', parameters.goPath, parameters.goAppName) }}
+
+    - script: 'git config --global --add http.https://msazure.visualstudio.com.extraheader "AUTHORIZATION: bearer $SYSTEM_ACCESSTOKEN"'
+      displayName: configure git
+      workingDirectory: ${{ format('{0}/src/{1}', parameters.goPath, parameters.goAppName) }}
+      env:
+        SYSTEM_ACCESSTOKEN: $(system.accesstoken)
+
+    - bash: |
+        echo "IMG: $IMG"
+        go mod tidy
+        make docker-ci
+      displayName: docker build and push
+      workingDirectory: ${{ format('{0}/src/{1}', parameters.goPath, parameters.goAppName) }}
+      env:
+        REGISTRY: ${{ parameters.prodRegistry }}
+        REGISTRY_USERNAME: ${{ parameters.registryUsername }}
+        REGISTRY_PASSWORD: ${{ parameters.registryPassword }}
+        IMG: ${{ format('{0}/{1}/ctrlarm:{2}', parameters.prodRegistry, parameters.imagePrefix, parameters.mutableVersion) }}
+
+    - task: CopyFiles@2
+      displayName: stage artifacts
+      inputs:
+        sourceFolder: ${{ format('{0}/src/{1}', parameters.goPath, parameters.goAppName) }}
+        contents:  'out/**'
+        targetFolder: '$(Build.ArtifactStagingDirectory)'
+
+    - task: PublishBuildArtifacts@1
+      displayName: save artifacts
+      inputs:
+        pathtoPublish: '$(Build.ArtifactStagingDirectory)' 
+        artifactName: 'drop' 

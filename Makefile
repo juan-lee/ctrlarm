@@ -58,6 +58,12 @@ docker-build: test
 docker-push:
 	docker push ${IMG}
 
+docker-ci: generate fmt manifests
+	go build -o bin/manager main.go
+	docker login ${REGISTRY} -u ${REGISTRY_USERNAME} -p ${REGISTRY_PASSWORD}
+	docker build . -t ${IMG}
+	docker push ${IMG}
+
 # find or download controller-gen
 # download controller-gen if necessary
 controller-gen:
