@@ -7,8 +7,8 @@ ctrlarm uses [kubebuilder](https://github.com/kubernetes-sigs/kubebuilder) libra
 - _More to come..._
 
 ## Prerequisites
-- (kustomize)[https://github.com/kubernetes-sigs/kustomize]
-- (kubebuilder)[https://github.com/kubernetes-sigs/kubebuilder]
+- [kustomize](https://github.com/kubernetes-sigs/kustomize)
+- [kubebuilder](https://github.com/kubernetes-sigs/kubebuilder)
 
 ## Quickstart
 ``` bash
