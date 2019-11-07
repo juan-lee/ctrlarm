@@ -69,7 +69,7 @@ func (in *ManagedCluster) DeepCopyObject() runtime.Object {
 func (in *ManagedClusterList) DeepCopyInto(out *ManagedClusterList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]ManagedCluster, len(*in))

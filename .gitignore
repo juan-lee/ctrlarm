@@ -5,6 +5,7 @@
 *.dll
 *.so
 *.dylib
+hack/tools/bin
 bin
 
 # Test binary, build with `go test -c`
