@@ -52,7 +52,9 @@ type ManagedClusterStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:path=managedclusters,shortName=mc,scope=Namespaced
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="FQDN",type="string",JSONPath=".status.fqdn",description="API endpoint FQDN"
 // +kubebuilder:printcolumn:name="State",type="string",JSONPath=".status.state",description="Provisioning state of the cluster resource"
 
 // ManagedCluster is the Schema for the managedclusters API

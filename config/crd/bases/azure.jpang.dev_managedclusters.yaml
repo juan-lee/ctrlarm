@@ -18,8 +18,10 @@ spec:
     kind: ManagedCluster
     listKind: ManagedClusterList
     plural: managedclusters
+    shortNames:
+    - mc
     singular: managedcluster
-  scope: ""
+  scope: Namespaced
   subresources:
     status: {}
   validation:
