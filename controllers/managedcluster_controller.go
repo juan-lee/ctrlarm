@@ -37,6 +37,7 @@ import (
 
 const (
 	stateUnknown  = "Unknown"
+	stateUpdating = "Updating"
 	stateCreating = "Creating"
 	stateDeleting = "Deleting"
 	stateDeleted  = "Deleted"
@@ -51,28 +52,19 @@ type ManagedClusterReconciler struct {
 	Log logr.Logger
 }
 
-type managedClusterClient struct {
-	*containerservice.ManagedClustersClient
-
-	instance *azurev1.ManagedCluster
-}
-
 type managedCluster struct {
 	azurev1.ManagedCluster
 	ClientID     string
 	ClientSecret string
 }
 
-func newClient(instance *azurev1.ManagedCluster) (*managedClusterClient, error) {
-	managedClusters := containerservice.NewManagedClustersClient(instance.Spec.SubscriptionID)
+func newClient(subscriptionID string) (*containerservice.ManagedClustersClient, error) {
+	managedClusters := containerservice.NewManagedClustersClient(subscriptionID)
 	err := authorizeFromFile(&managedClusters.Client)
 	if err != nil {
 		return nil, err
 	}
-	return &managedClusterClient{
-		instance:              instance,
-		ManagedClustersClient: &managedClusters,
-	}, nil
+	return &managedClusters, nil
 }
 
 // +kubebuilder:rbac:groups=azure.jpang.dev,resources=managedclusters;managedclusters/status,verbs=get;list;watch;create;update;patch;delete
@@ -90,7 +82,6 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 
 	var instance azurev1.ManagedCluster
 	if err := r.Get(ctx, req.NamespacedName, &instance); err != nil {
-		log.Error(err, "unable to fetch managedCluster")
 		return ctrl.Result{}, ignoreNotFound(err)
 	}
 
@@ -104,7 +95,7 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		return ctrl.Result{}, nil
 	}
 
-	managedClusters, err := newClient(&instance)
+	managedClusters, err := newClient(instance.Spec.SubscriptionID)
 	if err != nil {
 		log.Error(err, "unable to authorize containerservice client")
 		return ctrl.Result{}, nil
@@ -127,25 +118,9 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 			}
 			return ctrl.Result{}, nil
 		}
-		log.Info("Found status", "instance.Status", instance.Status)
 		if !isProvisioning(instance.Status) {
-			log.Info("Deleting managedCluster")
-			go func() {
-				if err = managedClusters.Delete(ctx, &desired); err != nil {
-					log.Error(err, "unable to delete cluster")
-					return
-				}
-				patch := client.MergeFrom(instance.DeepCopyObject())
-				instance.Status.State = stateDeleted
-				if err = r.Status().Patch(ctx, instance.DeepCopyObject(), patch); err != nil {
-					log.Error(err, "unable to patch cluster spec")
-					return
-				}
-				log.Info("Deleted managedCluster")
-			}()
-			patch := client.MergeFrom(instance.DeepCopyObject())
-			instance.Status.State = stateDeleting
-			if err = r.Status().Patch(ctx, instance.DeepCopyObject(), patch); err != nil {
+			err = r.reconcileDelete(ctx, log, managedClusters, &desired)
+			if err != nil {
 				log.Error(err, "unable to patch cluster spec")
 				return ctrl.Result{Requeue: true}, nil
 			}
@@ -166,8 +141,10 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 		}
 	}
 
-	found := managedCluster{}
-	err = managedClusters.Get(ctx, &found)
+	found := managedCluster{
+		ManagedCluster: *instance.DeepCopy(),
+	}
+	err = r.getResource(ctx, managedClusters, &found)
 	if err != nil && notFound(err) {
 		if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
 			log.Info("Marking managedCluster deleted")
@@ -180,25 +157,9 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 			return ctrl.Result{}, nil
 		}
 
-		log.Info("Creating managedCluster")
-		go func() {
-			patch := client.MergeFrom(desired.ManagedCluster.DeepCopyObject())
-			err = managedClusters.Create(ctx, &desired)
-			if err != nil {
-				log.Error(err, "unable to create cluster")
-				return
-			}
-			err = r.Status().Patch(ctx, desired.ManagedCluster.DeepCopyObject(), patch)
-			if err != nil {
-				log.Error(err, "unable to patch cluster status")
-				return
-			}
-			log.Info("Created managedCluster")
-		}()
-		patch := client.MergeFrom(instance.DeepCopyObject())
-		instance.Status.State = stateCreating
-		if err = r.Status().Patch(ctx, instance.DeepCopyObject(), patch); err != nil {
-			log.Error(err, "unable to patch cluster spec")
+		err = r.reconcileCluster(ctx, log, managedClusters, &desired)
+		if err != nil {
+			log.Error(err, "unable to create cluster")
 			return ctrl.Result{Requeue: true}, nil
 		}
 		return ctrl.Result{}, nil
@@ -224,44 +185,27 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, err
 	}
 
 	if !reflect.DeepEqual(desired.Spec, found.Spec) {
-		log.Info("Updating managedCluster")
 		found.Spec = desired.Spec
-		go func() {
-			patch := client.MergeFrom(found.ManagedCluster.DeepCopyObject())
-			err = managedClusters.Update(ctx, &found)
-			if err != nil {
-				log.Error(err, "unable to update cluster")
-				return
-			}
-			found.Status.State = stateUnknown
-			err = r.Status().Patch(ctx, found.ManagedCluster.DeepCopyObject(), patch)
-			if err != nil {
-				log.Error(err, "unable to patch cluster status")
-				return
-			}
-			log.Info("Updated managedCluster")
-		}()
-		return ctrl.Result{Requeue: true}, nil
+		err = r.reconcileCluster(ctx, log, managedClusters, &found)
+		if err != nil {
+			log.Error(err, "unable to update cluster")
+			return ctrl.Result{Requeue: true}, nil
+		}
+		return ctrl.Result{}, nil
 	}
-
-	// nolint:gocritic
-	// if !reflect.DeepEqual(desired.Status, found.Status) {
-	// 	log.Info("Updating Status", "found.Status", found.Status)
-	// 	err = r.Status().Update(ctx, &found.ManagedCluster)
-	// 	if err != nil {
-	// 		log.Error(err, "unable to update cluster status")
-	// 		return ctrl.Result{}, nil
-	// 	}
-	// }
 	return ctrl.Result{}, nil
 }
 
-func (c managedClusterClient) Get(ctx context.Context, instance *managedCluster) error {
-	found, err := c.ManagedClustersClient.Get(ctx, c.instance.Spec.ResourceGroup, c.instance.Spec.Name)
+func (r *ManagedClusterReconciler) getResource(
+	ctx context.Context,
+	c *containerservice.ManagedClustersClient,
+	instance *managedCluster,
+) error {
+	found, err := c.Get(ctx, instance.Spec.ResourceGroup, instance.Spec.Name)
 	if err != nil {
 		return err
 	}
-	result, err := c.makeManagedCluster(&found)
+	result, err := makeManagedCluster(instance, &found)
 	if err != nil {
 		return err
 	}
@@ -269,48 +213,89 @@ func (c managedClusterClient) Get(ctx context.Context, instance *managedCluster)
 	return nil
 }
 
-func (c managedClusterClient) Create(ctx context.Context, instance *managedCluster) error {
-	return c.Update(ctx, instance)
-}
-
-func (c managedClusterClient) Update(ctx context.Context, instance *managedCluster) error {
+func (r *ManagedClusterReconciler) reconcileCluster(
+	ctx context.Context,
+	log logr.Logger,
+	c *containerservice.ManagedClustersClient,
+	instance *managedCluster,
+) error {
+	log.Info("Reconciling managedCluster")
 	future, err := c.CreateOrUpdate(ctx, instance.Spec.ResourceGroup, instance.Spec.Name, *instance.Parameters())
 	if err != nil {
 		return err
 	}
-	err = future.WaitForCompletionRef(ctx, c.Client)
-	if err != nil {
+	go func() {
+		patch := client.MergeFrom(instance.ManagedCluster.DeepCopyObject())
+		err = future.WaitForCompletionRef(ctx, c.Client)
+		if err != nil {
+			log.Error(err, "unable to wait for put")
+			return
+		}
+		found, err := future.Result(*c)
+		if err != nil {
+			log.Error(err, "unable to get put result")
+			return
+		}
+		result, err := makeManagedCluster(instance, &found)
+		if err != nil {
+			log.Error(err, "unable to get make result")
+			return
+		}
+		result.DeepCopyInto(&instance.ManagedCluster)
+		err = r.Status().Patch(ctx, instance.ManagedCluster.DeepCopyObject(), patch)
+		if err != nil {
+			log.Error(err, "unable to patch cluster status")
+			return
+		}
+		log.Info("Reconciled managedCluster")
+	}()
+	patch := client.MergeFrom(instance.DeepCopyObject())
+	instance.Status.State = stateUnknown
+	if err := r.Status().Patch(ctx, instance.DeepCopyObject(), patch); err != nil {
 		return err
 	}
-	found, err := future.Result(*c.ManagedClustersClient)
-	if err != nil {
-		return err
-	}
-	result, err := c.makeManagedCluster(&found)
-	if err != nil {
-		return err
-	}
-	result.DeepCopyInto(&instance.ManagedCluster)
 	return nil
 }
 
-func (c managedClusterClient) Delete(ctx context.Context, instance *managedCluster) error {
-	future, err := c.ManagedClustersClient.Delete(ctx, instance.Spec.ResourceGroup, instance.Spec.Name)
+func (r *ManagedClusterReconciler) reconcileDelete(
+	ctx context.Context,
+	log logr.Logger,
+	c *containerservice.ManagedClustersClient,
+	instance *managedCluster,
+) error {
+	log.Info("Deleting managedCluster")
+	future, err := c.Delete(ctx, instance.Spec.ResourceGroup, instance.Spec.Name)
 	if err != nil {
 		return err
 	}
-	err = future.WaitForCompletionRef(ctx, c.Client)
-	if err != nil {
-		return err
-	}
-	_, err = future.Result(*c.ManagedClustersClient)
-	if err != nil {
+	go func() {
+		err = future.WaitForCompletionRef(ctx, c.Client)
+		if err != nil {
+			log.Error(err, "unable to wait for delete")
+			return
+		}
+		_, err = future.Result(*c)
+		if err != nil {
+			log.Error(err, "unable to get delete result")
+			return
+		}
+		patch := client.MergeFrom(instance.DeepCopyObject())
+		instance.Status.State = stateDeleted
+		if err = r.Status().Patch(ctx, instance.DeepCopyObject(), patch); err != nil {
+			log.Error(err, "unable to patch cluster spec")
+			return
+		}
+		log.Info("Deleted managedCluster")
+	}()
+	patch := client.MergeFrom(instance.DeepCopyObject())
+	instance.Status.State = stateDeleting
+	if err := r.Status().Patch(ctx, instance.DeepCopyObject(), patch); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c managedClusterClient) makeManagedCluster(mc *containerservice.ManagedCluster) (*managedCluster, error) {
+func makeManagedCluster(instance *managedCluster, mc *containerservice.ManagedCluster) (*managedCluster, error) {
 	if mc == nil {
 		return nil, errors.New("containerservice.ManagedCluster is nil")
 	}
@@ -322,19 +307,19 @@ func (c managedClusterClient) makeManagedCluster(mc *containerservice.ManagedClu
 	}
 	return &managedCluster{
 		ManagedCluster: azurev1.ManagedCluster{
-			TypeMeta:   c.instance.TypeMeta,
-			ObjectMeta: *c.instance.ObjectMeta.DeepCopy(),
+			TypeMeta:   instance.TypeMeta,
+			ObjectMeta: *instance.ObjectMeta.DeepCopy(),
 			Spec: azurev1.ManagedClusterSpec{
 				AzureMeta: azurev1.AzureMeta{
-					SubscriptionID: c.instance.Spec.SubscriptionID,
-					ResourceGroup:  c.instance.Spec.AzureMeta.ResourceGroup,
+					SubscriptionID: instance.Spec.SubscriptionID,
+					ResourceGroup:  instance.Spec.AzureMeta.ResourceGroup,
 					Location:       *mc.Location,
 				},
 				Name:      *mc.Name,
 				Version:   *mc.KubernetesVersion,
 				NodePools: makeNodePools(*mc.AgentPoolProfiles),
 				CredentialsRef: corev1.LocalObjectReference{
-					Name: c.instance.Spec.CredentialsRef.Name,
+					Name: instance.Spec.CredentialsRef.Name,
 				},
 			},
 			Status: azurev1.ManagedClusterStatus{
@@ -412,6 +397,8 @@ func isProvisioning(status azurev1.ManagedClusterStatus) bool {
 	case "Scaling":
 		return true
 	case stateDeleting:
+		return true
+	case stateUpdating:
 		return true
 	default:
 		return false
