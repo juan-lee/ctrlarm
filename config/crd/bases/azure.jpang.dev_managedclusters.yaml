@@ -9,6 +9,10 @@ metadata:
   name: managedclusters.azure.jpang.dev
 spec:
   additionalPrinterColumns:
+  - JSONPath: .status.fqdn
+    description: API endpoint FQDN
+    name: FQDN
+    type: string
   - JSONPath: .status.state
     description: Provisioning state of the cluster resource
     name: State
@@ -18,8 +22,10 @@ spec:
     kind: ManagedCluster
     listKind: ManagedClusterList
     plural: managedclusters
+    shortNames:
+    - mc
     singular: managedcluster
-  scope: ""
+  scope: Namespaced
   subresources:
     status: {}
   validation:
