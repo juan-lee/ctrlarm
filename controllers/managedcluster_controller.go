@@ -87,7 +87,7 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, r
 		return ctrl.Result{}, ignoreNotFound(err)
 	}
 
-	secretName := types.NamespacedName{Name: instance.Spec.CredentialsRef.Name, Namespace: req.NamespacedName.Namespace}
+	secretName := types.NamespacedName{Name: instance.Spec.CredentialsRef.Name, Namespace: instance.Spec.CredentialsRef.Namespace}
 	var creds corev1.Secret
 	if err := r.Get(ctx, secretName, &creds); err != nil {
 		log.Error(err, "unable to fetch managedCluster secret")
@@ -296,8 +296,9 @@ func makeManagedCluster(instance *managedCluster, mc *containerservice.ManagedCl
 				Name:      *mc.Name,
 				Version:   *mc.KubernetesVersion,
 				NodePools: makeNodePools(*mc.AgentPoolProfiles),
-				CredentialsRef: corev1.LocalObjectReference{
-					Name: instance.Spec.CredentialsRef.Name,
+				CredentialsRef: corev1.SecretReference{
+					Name:      instance.Spec.CredentialsRef.Name,
+					Namespace: instance.Spec.CredentialsRef.Namespace,
 				},
 			},
 			Status: azurev1.ManagedClusterStatus{

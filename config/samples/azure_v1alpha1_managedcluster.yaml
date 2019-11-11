@@ -6,6 +6,7 @@ data:
   clientSecret: "${AZURE_CLIENT_SECRET}"
 metadata:
   name: credentials
+  namespace: default
 ---
 apiVersion: azure.jpang.dev/v1alpha1
 kind: ManagedCluster
@@ -23,3 +24,4 @@ spec:
     capacity: 1
   credentialsRef:
     name: credentials
+    namespace: default

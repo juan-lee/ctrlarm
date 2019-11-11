@@ -36,7 +36,7 @@ type ManagedClusterSpec struct {
 	NodePools []NodePool `json:"nodePools"`
 
 	// CredentialsRef is a reference to the azure kubernetes cluster credentials.
-	CredentialsRef corev1.LocalObjectReference `json:"credentialsRef,omitempty"`
+	CredentialsRef corev1.SecretReference `json:"credentialsRef,omitempty"`
 }
 
 // ManagedClusterStatus defines the observed state of ManagedCluster
