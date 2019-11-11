@@ -41,7 +41,6 @@ const (
 	stateUpdating  = "Updating"
 	stateCreating  = "Creating"
 	stateDeleting  = "Deleting"
-	stateDeleted   = "Deleted"
 	stateSucceeded = "Succeeded"
 	stateFailed    = "Failed"
 
@@ -88,23 +87,9 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, r
 		return ctrl.Result{}, ignoreNotFound(err)
 	}
 
-	patcher, perr := patch.NewHelper(&instance, r.Client)
-	if perr != nil {
-		return ctrl.Result{}, perr
-	}
-
-	defer func() {
-		if err := patcher.Patch(ctx, &instance); err != nil {
-			reterr = err
-		}
-	}()
-
-	log.Info("Fetching managedCluster credentials")
+	secretName := types.NamespacedName{Name: instance.Spec.CredentialsRef.Name, Namespace: req.NamespacedName.Namespace}
 	var creds corev1.Secret
-	if err := r.Get(ctx, types.NamespacedName{
-		Name:      instance.Spec.CredentialsRef.Name,
-		Namespace: req.NamespacedName.Namespace,
-	}, &creds); err != nil {
+	if err := r.Get(ctx, secretName, &creds); err != nil {
 		log.Error(err, "unable to fetch managedCluster secret")
 		return ctrl.Result{}, nil
 	}
@@ -121,59 +106,49 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, r
 		ClientSecret:   string(creds.Data["clientSecret"]),
 	}
 
-	if !instance.ObjectMeta.DeletionTimestamp.IsZero() && instance.HasFinalizer() {
-		if instance.Status.State == stateDeleted {
-			log.Info("Removing managedCluster finalizer")
-			instance.RemoveFinalizer()
-			return ctrl.Result{}, nil
-		}
-		if !isProvisioning(instance.Status) {
-			err = r.reconcileDelete(ctx, log, managedClusters, &desired)
-			if err != nil {
-				desired.Status.DeepCopyInto(&instance.Status)
-				log.Error(err, "unable to patch cluster spec")
-				return ctrl.Result{Requeue: true}, nil
-			}
-			desired.Status.DeepCopyInto(&instance.Status)
-			return ctrl.Result{}, nil
-		}
+	patcher, perr := patch.NewHelper(&desired.ManagedCluster, r.Client)
+	if perr != nil {
+		return ctrl.Result{}, perr
 	}
 
-	if instance.ObjectMeta.DeletionTimestamp.IsZero() && !instance.HasFinalizer() {
-		if instance.Status.State == "Succeeded" {
-			log.Info("Adding managedCluster finalizer")
-			instance.AddFinalizer()
-			return ctrl.Result{}, nil
+	defer func() {
+		if derr := patcher.Patch(ctx, &desired.ManagedCluster); derr != nil {
+			reterr = derr
 		}
+	}()
+
+	if !desired.ObjectMeta.DeletionTimestamp.IsZero() {
+		return r.reconcileDelete(ctx, log, managedClusters, &desired)
 	}
 
-	found := managedCluster{
-		ManagedCluster: *instance.DeepCopy(),
+	return r.reconcile(ctx, log, managedClusters, &desired)
+}
+
+func (r *ManagedClusterReconciler) reconcile(
+	ctx context.Context,
+	log logr.Logger,
+	c *containerservice.ManagedClustersClient,
+	desired *managedCluster,
+) (ctrl.Result, error) {
+	if !desired.HasFinalizer() {
+		desired.AddFinalizer()
 	}
-	err = r.getResource(ctx, managedClusters, &found)
+
+	found := managedCluster{ManagedCluster: *desired.ManagedCluster.DeepCopy()}
+	err := r.getResource(ctx, c, &found)
 	if err != nil && notFound(err) {
-		if !instance.ObjectMeta.DeletionTimestamp.IsZero() {
-			log.Info("Marking managedCluster deleted")
-			instance.Status.State = stateDeleted
-			return ctrl.Result{}, nil
-		}
-
-		err = r.reconcileCluster(ctx, log, managedClusters, &desired)
+		err = r.reconcileCluster(ctx, log, c, desired)
 		if err != nil {
-			desired.Status.DeepCopyInto(&instance.Status)
-			log.Error(err, "unable to create cluster")
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{Requeue: true}, err
 		}
-		desired.Status.DeepCopyInto(&instance.Status)
 		return ctrl.Result{}, nil
 	} else if err != nil {
-		log.Error(err, "unable to get managedCluster")
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, err
 	}
 
-	if found.Status.State != instance.Status.State {
-		log.Info("ManagedCluster State Changed", "before", instance.Status.State, "after", found.Status.State)
-		instance.Status.State = found.ManagedCluster.Status.State
+	if found.Status.State != desired.Status.State {
+		log.Info("ManagedCluster State Changed", "before", desired.Status.State, "after", found.Status.State)
+		desired.Status.State = found.Status.State
 		return ctrl.Result{}, nil
 	}
 
@@ -183,16 +158,54 @@ func (r *ManagedClusterReconciler) Reconcile(req ctrl.Request) (_ ctrl.Result, r
 	}
 
 	if !reflect.DeepEqual(desired.Spec, found.Spec) {
-		found.Spec = desired.Spec
-		err = r.reconcileCluster(ctx, log, managedClusters, &found)
+		err = r.reconcileCluster(ctx, log, c, desired)
 		if err != nil {
-			found.Status.DeepCopyInto(&instance.Status)
-			log.Error(err, "unable to update cluster")
-			return ctrl.Result{Requeue: true}, nil
+			return ctrl.Result{Requeue: true}, err
 		}
-		found.Status.DeepCopyInto(&instance.Status)
-		return ctrl.Result{}, nil
 	}
+	return ctrl.Result{}, nil
+}
+
+func (r *ManagedClusterReconciler) reconcileDelete(
+	ctx context.Context,
+	log logr.Logger,
+	c *containerservice.ManagedClustersClient,
+	instance *managedCluster,
+) (ctrl.Result, error) {
+	log.Info("Deleting managedCluster")
+	future, err := c.Delete(ctx, instance.Spec.ResourceGroup, instance.Spec.Name)
+	if err != nil && notFound(err) {
+		instance.RemoveFinalizer()
+		return ctrl.Result{}, nil
+	} else if err != nil {
+		return ctrl.Result{}, err
+	}
+	go func() {
+		patcher, perr := patch.NewHelper(&instance.ManagedCluster, r.Client)
+		if perr != nil {
+			log.Error(perr, "unable to create patch helper")
+			return
+		}
+		defer func() {
+			if derr := patcher.Patch(ctx, &instance.ManagedCluster); derr != nil {
+				log.Error(derr, "unable to patch instance")
+			}
+		}()
+
+		err = future.WaitForCompletionRef(ctx, c.Client)
+		if err != nil {
+			log.Error(err, "unable to wait for delete")
+			return
+		}
+		_, err = future.Result(*c)
+		if err != nil {
+			log.Error(err, "unable to get delete result")
+			return
+		}
+		instance.RemoveFinalizer()
+		log.Info("Deleted managedCluster")
+	}()
+	instance.Status.State = stateDeleting
 	return ctrl.Result{}, nil
 }
 
@@ -255,46 +268,6 @@ func (r *ManagedClusterReconciler) reconcileCluster(
 		result.DeepCopyInto(&instance.ManagedCluster)
 		instance.Status.State = stateSucceeded
 		log.Info("Reconciled managedCluster")
-	}()
-	instance.Status.State = statePending
-	return nil
-}
-
-func (r *ManagedClusterReconciler) reconcileDelete(
-	ctx context.Context,
-	log logr.Logger,
-	c *containerservice.ManagedClustersClient,
-	instance *managedCluster,
-) error {
-	log.Info("Deleting managedCluster")
-	future, err := c.Delete(ctx, instance.Spec.ResourceGroup, instance.Spec.Name)
-	if err != nil {
-		return err
-	}
-	go func() {
-		patcher, perr := patch.NewHelper(&instance.ManagedCluster, r.Client)
-		if perr != nil {
-			log.Error(perr, "unable to create patch helper")
-			return
-		}
-		defer func() {
-			if derr := patcher.Patch(ctx, &instance.ManagedCluster); derr != nil {
-				log.Error(derr, "unable to patch instance")
-			}
-		}()
-
-		err = future.WaitForCompletionRef(ctx, c.Client)
-		if err != nil {
-			log.Error(err, "unable to wait for delete")
-			return
-		}
-		_, err = future.Result(*c)
-		if err != nil {
-			log.Error(err, "unable to get delete result")
-			return
-		}
-		instance.Status.State = stateDeleted
-		log.Info("Deleted managedCluster")
 	}()
 	instance.Status.State = statePending
 	return nil
