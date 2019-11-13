@@ -28,6 +28,7 @@ import (
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -51,7 +52,8 @@ const (
 // ManagedClusterReconciler reconciles a ManagedCluster object
 type ManagedClusterReconciler struct {
 	client.Client
-	Log logr.Logger
+	Log    logr.Logger
+	Scheme *runtime.Scheme
 }
 
 type managedCluster struct {
