@@ -12,20 +12,26 @@ ctrlarm uses [kubebuilder](https://github.com/kubernetes-sigs/kubebuilder) libra
 
 ## Quickstart
 ``` bash
-AZURE_SUBSCRIPTION_ID="$(az account show | jq -j -r '.id')"
-AZURE_AUTH_LOCATION="${HOME}/creds.json"
+export AZURE_SUBSCRIPTION_ID="$(az account show | jq -j -r '.id')"
+export AZURE_AUTH_LOCATION="${HOME}/creds.json"
 
 # Create Service Principal used by the ctrlarm controller
 az ad sp create-for-rbac --sdk-auth \
     --role "Contributor" \
     --scope "/subscriptions/${AZURE_SUBSCRIPTION_ID}" > "${AZURE_AUTH_LOCATION}"
 
-AZURE_B64ENCODED_CREDENTIALS="$(cat ${AZURE_AUTH_LOCATION} | base64 -w0)"
-AZURE_CLIENT_ID="$(cat ${AZURE_AUTH_LOCATION} | jq -j -r '.clientId' | base64 -w0)"
-AZURE_CLIENT_SECRET="$(cat ${AZURE_AUTH_LOCATION} | jq -j -r '.clientSecret' | base64 -w0)"
+export AZURE_B64ENCODED_CREDENTIALS="$(cat ${AZURE_AUTH_LOCATION} | base64 -w0)"
+export AZURE_CLIENT_ID="$(cat ${AZURE_AUTH_LOCATION} | jq -j -r '.clientId' | base64 -w0)"
+export AZURE_CLIENT_SECRET="$(cat ${AZURE_AUTH_LOCATION} | jq -j -r '.clientSecret' | base64 -w0)"
 
 # Replace "your-docker-registry"
 IMG=your-docker-registry/ctrlarm-controller:latest
+
+# Create a namespace to run cert-manager in
+kubectl create namespace cert-manager
+
+# Install the CustomResourceDefinitions and cert-manager itself
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v0.11.0/cert-manager.yaml
 
 # Build and Deploy
 make docker-build docker-push install deploy
