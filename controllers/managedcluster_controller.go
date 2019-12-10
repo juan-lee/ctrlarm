@@ -183,12 +183,15 @@ func (r *ManagedClusterReconciler) reconcileDelete(
 		return ctrl.Result{}, err
 	}
 	go func() {
-		patcher, perr := patch.NewHelper(&instance.ManagedCluster, r.Client)
-		if perr != nil {
-			log.Error(perr, "unable to create patch helper")
+		patcher, err := patch.NewHelper(&instance.ManagedCluster, r.Client)
+		if err != nil {
+			log.Error(err, "unable to create patch helper")
 			return
 		}
 		defer func() {
+			if err != nil {
+				instance.Status.State = stateFailed
+			}
 			if derr := patcher.Patch(ctx, &instance.ManagedCluster); derr != nil {
 				log.Error(derr, "unable to patch instance")
 			}
@@ -240,12 +243,15 @@ func (r *ManagedClusterReconciler) reconcileCluster(
 		return err
 	}
 	go func() {
-		patcher, perr := patch.NewHelper(&instance.ManagedCluster, r.Client)
-		if perr != nil {
-			log.Error(perr, "unable to create patch helper")
+		patcher, err := patch.NewHelper(&instance.ManagedCluster, r.Client)
+		if err != nil {
+			log.Error(err, "unable to create patch helper")
 			return
 		}
 		defer func() {
+			if err != nil {
+				instance.Status.State = stateFailed
+			}
 			if derr := patcher.Patch(ctx, &instance.ManagedCluster); derr != nil {
 				log.Error(derr, "unable to patch instance")
 			}
