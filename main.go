@@ -44,13 +44,16 @@ func init() { //nolint:gochecknoinits
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
+	var developmentMode bool
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	flag.BoolVar(&developmentMode, "development-mode", true,
+		"Enable development mode (altered logging, etc.)")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
-		o.Development = true
+		o.Development = developmentMode
 	}))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
