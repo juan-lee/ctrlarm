@@ -47,6 +47,12 @@ spec:
         spec:
           description: ManagedClusterSpec defines the desired state of ManagedCluster
           properties:
+            authorizedIPRanges:
+              description: AuthorizedIPRanges gives a list of CIDR addresses that
+                should be whitelisted.
+              items:
+                type: string
+              type: array
             credentialsRef:
               description: CredentialsRef is a reference to the azure kubernetes cluster
                 credentials.
