@@ -336,6 +336,9 @@ func (mc *managedCluster) Parameters() *containerservice.ManagedCluster {
 		Name:     &mc.Spec.Name,
 		Location: &mc.Spec.Location,
 		ManagedClusterProperties: &containerservice.ManagedClusterProperties{
+			APIServerAccessProfile: &containerservice.ManagedClusterAPIServerAccessProfile{
+				AuthorizedIPRanges: &mc.Spec.AuthorizedIPRanges,
+			},
 			KubernetesVersion: &mc.Spec.Version,
 			DNSPrefix:         &mc.Spec.Name,
 			LinuxProfile: &containerservice.LinuxProfile{
