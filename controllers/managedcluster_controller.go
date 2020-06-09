@@ -332,13 +332,10 @@ func makeNodePools(agentpools []containerservice.ManagedClusterAgentPoolProfile)
 }
 
 func (mc *managedCluster) Parameters() *containerservice.ManagedCluster {
-	return &containerservice.ManagedCluster{
+	managedClusterParams := &containerservice.ManagedCluster{
 		Name:     &mc.Spec.Name,
 		Location: &mc.Spec.Location,
 		ManagedClusterProperties: &containerservice.ManagedClusterProperties{
-			APIServerAccessProfile: &containerservice.ManagedClusterAPIServerAccessProfile{
-				AuthorizedIPRanges: &mc.Spec.AuthorizedIPRanges,
-			},
 			KubernetesVersion: &mc.Spec.Version,
 			DNSPrefix:         &mc.Spec.Name,
 			LinuxProfile: &containerservice.LinuxProfile{
@@ -354,6 +351,17 @@ func (mc *managedCluster) Parameters() *containerservice.ManagedCluster {
 			},
 		},
 	}
+
+	// If an IP whitelist is included, configure it and enable a standard load balancer
+	if len(mc.Spec.AuthorizedIPRanges) > 0 {
+		managedClusterParams.ManagedClusterProperties.APIServerAccessProfile = &containerservice.ManagedClusterAPIServerAccessProfile{
+			AuthorizedIPRanges: &mc.Spec.AuthorizedIPRanges,
+		}
+
+		managedClusterParams.ManagedClusterProperties.NetworkProfile.LoadBalancerSku = containerservice.Standard
+	}
+
+	return managedClusterParams
 }
 
 func makeAgentPoolProfiles(nodePools []azurev1.NodePool) *[]containerservice.ManagedClusterAgentPoolProfile {
