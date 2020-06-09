@@ -358,7 +358,9 @@ func (mc *managedCluster) Parameters() *containerservice.ManagedCluster {
 			AuthorizedIPRanges: &mc.Spec.AuthorizedIPRanges,
 		}
 
-		managedClusterParams.ManagedClusterProperties.NetworkProfile.LoadBalancerSku = containerservice.Standard
+		managedClusterParams.ManagedClusterProperties.NetworkProfile = &containerservice.NetworkProfileType{
+			LoadBalancerSku: containerservice.Standard,
+		}
 	}
 
 	return managedClusterParams
