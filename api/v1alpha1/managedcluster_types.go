@@ -35,6 +35,9 @@ type ManagedClusterSpec struct {
 	// NodePools defines the node pools in a azure kubernetes cluster resource.
 	NodePools []NodePool `json:"nodePools"`
 
+	// AuthorizedIPRanges gives a list of CIDR addresses that should be whitelisted.
+	AuthorizedIPRanges []string `json:"authorizedIPRanges,omitempty"`
+
 	// CredentialsRef is a reference to the azure kubernetes cluster credentials.
 	CredentialsRef corev1.SecretReference `json:"credentialsRef,omitempty"`
 }

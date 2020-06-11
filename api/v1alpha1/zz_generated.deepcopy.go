@@ -106,6 +106,11 @@ func (in *ManagedClusterSpec) DeepCopyInto(out *ManagedClusterSpec) {
 		*out = make([]NodePool, len(*in))
 		copy(*out, *in)
 	}
+	if in.AuthorizedIPRanges != nil {
+		in, out := &in.AuthorizedIPRanges, &out.AuthorizedIPRanges
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	out.CredentialsRef = in.CredentialsRef
 }
 
