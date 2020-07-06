@@ -373,6 +373,7 @@ func makeAgentPoolProfiles(nodePools []azurev1.NodePool) *[]containerservice.Man
 			Name:   &np.Name,
 			Count:  &np.Capacity,
 			VMSize: containerservice.VMSizeTypes(np.SKU),
+			Type:   containerservice.AgentPoolType(np.NodePoolType),
 		})
 	}
 	return &result

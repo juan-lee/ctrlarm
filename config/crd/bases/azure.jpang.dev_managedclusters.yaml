@@ -85,6 +85,10 @@ spec:
                   name:
                     description: Name of the node pool.
                     type: string
+                  nodePoolType:
+                    description: AgentPoolType sets what kind of agent pool is used
+                      for this node pool (e.g. "VirtualMachineScaleSets").
+                    type: string
                   sku:
                     description: SKU of the VMs in the node pool.
                     type: string
