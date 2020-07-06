@@ -39,4 +39,7 @@ type NodePool struct {
 
 	// Capacity is the number of VMs in a node pool.
 	Capacity int32 `json:"capacity,omitempty"`
+
+	// AgentPoolType sets what kind of agent pool is used for this node pool (e.g. "VirtualMachineScaleSets").
+	NodePoolType string `json:"nodePoolType,omitempty"`
 }
